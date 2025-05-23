@@ -1,0 +1,40 @@
+name: Maven Build
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      DOCKER_IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/ft-config-server
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: 21
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Make Maven wrapper executable
+        run: chmod +x mvnw
+
+      - name: Build with Maven
+        run: ./mvnw -ntp verify
+
+      - if: ${{ github.ref == 'refs/heads/main' }}
+        name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - if: ${{ github.ref == 'refs/heads/main' }}
+        name: Build and Publish Docker Image
+        run: |
+          ./mvnw spring-boot:build-image -DskipTests
+          echo "Pushing the image $DOCKER_IMAGE_NAME to Docker Hub..."
+          docker push --all-tags $DOCKER_IMAGE_NAME
